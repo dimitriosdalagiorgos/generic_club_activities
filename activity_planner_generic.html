@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Σχεδιασμός Δραστηριοτήτων</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d0f;--panel:#13131a;--border:rgba(255,255,255,0.07);
+  --text:#e8e8f0;--muted:#5a5a72;--accent:#7c6fff;
+  --danger:#ff5c72;--success:#3ecf8e;--warn:#ffb547;--cand:#5bc4f5;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ── UPLOAD SCREEN ── */
+#upload-screen{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100vh;gap:32px;padding:40px;
+}
+#upload-screen h1{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff;text-align:center;}
+#upload-screen p{font-size:11px;color:var(--muted);text-align:center;max-width:500px;line-height:1.8;}
+#drop-zone{
+  width:480px;max-width:100%;border:2px dashed rgba(124,111,255,.4);border-radius:16px;
+  padding:48px 32px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(124,111,255,.04);
+}
+#drop-zone:hover,#drop-zone.drag-over{border-color:var(--accent);background:rgba(124,111,255,.1);}
+#drop-zone .dz-icon{font-size:48px;margin-bottom:16px;display:block;}
+#drop-zone h2{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff;margin-bottom:8px;}
+#drop-zone p{font-size:10px;color:var(--muted);}
+#file-input{display:none;}
+#drop-zone .dz-btn{
+  margin-top:20px;display:inline-block;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:#fff;
+  border:none;padding:10px 24px;border-radius:6px;cursor:pointer;transition:all .15s;
+}
+#drop-zone .dz-btn:hover{background:#9b8fff;}
+#upload-note{font-size:9px;color:var(--muted);text-align:center;max-width:480px;line-height:1.7;}
+
+/* ── CONFIRMATION SCREEN ── */
+#confirm-screen{display:none;flex-direction:column;height:100vh;overflow-y:auto;}
+#confirm-header{padding:20px 32px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+#confirm-header h2{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff;}
+#confirm-header p{font-size:10px;color:var(--muted);margin-top:4px;}
+#confirm-body{padding:24px 32px;display:flex;flex-direction:column;gap:24px;flex:1;}
+.confirm-section{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.confirm-section h3{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;}
+.conf-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:10px;}
+.conf-label{color:var(--muted);width:160px;flex-shrink:0;}
+.conf-val{color:#fff;font-weight:600;}
+.conf-ok{color:var(--success);}
+.conf-warn{color:var(--warn);}
+.conf-err{color:var(--danger);}
+.unmapped-list{font-size:9px;color:var(--warn);margin-top:8px;line-height:1.8;background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.2);border-radius:6px;padding:10px 12px;}
+.class-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.class-btn{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;padding:7px 18px;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:rgba(255,255,255,.04);color:var(--muted);transition:all .15s;}
+.class-btn:hover{border-color:var(--accent);color:#fff;}
+.class-btn.selected{background:rgba(124,111,255,.2);border-color:var(--accent);color:#fff;}
+#confirm-footer{padding:20px 32px;border-top:1px solid var(--border);background:var(--panel);display:flex;gap:12px;justify-content:flex-end;}
+.btn-primary{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;transition:all .15s;}
+.btn-primary:hover{background:#9b8fff;}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-sec{font-family:'Syne',sans-serif;font-size:11px;font-weight:600;background:transparent;color:var(--muted);border:1px solid var(--border);padding:9px 18px;border-radius:6px;cursor:pointer;transition:all .15s;}
+.btn-sec:hover{color:var(--text);border-color:rgba(255,255,255,.2);}
+
+/* ── MAIN APP ── */
+#app-screen{display:none;flex-direction:column;height:100vh;}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;gap:16px;}
+#topbar h1{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#fff;white-space:nowrap;}
+#gstats{display:flex;gap:18px;}
+.gs{display:flex;flex-direction:column;align-items:center;}
+.gs .v{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;line-height:1;}
+.gs .l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+.gs.sg .v{color:var(--accent)}.gs.sa .v{color:var(--success)}.gs.si .v{color:var(--danger)}.gs.su .v{color:var(--muted)}
+.bp{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.bp:hover{background:#9b8fff;}
+.bd{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;background:transparent;color:var(--danger);border:1px solid var(--danger);padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.bd:hover{background:rgba(255,92,114,.1);}
+.bm{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;background:transparent;color:var(--muted);border:1px solid var(--border);padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.bm:hover{color:var(--text);border-color:rgba(255,255,255,.2);}
+#main{display:flex;flex:1;overflow:hidden;}
+#left{width:340px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--panel);}
+#lhdr{padding:10px 14px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+#lhdr h2{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);}
+#btn-ag{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;background:rgba(124,111,255,.15);color:var(--accent);border:1px solid rgba(124,111,255,.35);padding:4px 12px;border-radius:5px;cursor:pointer;transition:all .15s;}
+#btn-ag:hover{background:rgba(124,111,255,.28);}
+#active-hint{padding:7px 14px;border-bottom:1px solid var(--border);font-size:9px;font-family:'Syne',sans-serif;letter-spacing:.08em;text-transform:uppercase;min-height:30px;display:flex;align-items:center;gap:8px;}
+#active-hint .ah-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+#gscroll{flex:1;overflow-y:auto;padding:8px 8px 0;}
+.gc{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .15s;cursor:pointer;}
+.gc:hover{border-color:rgba(255,255,255,.15);}
+.gc.active{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent);}
+.gh{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,.03);}
+.gsw{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.gni{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;flex:1;outline:none;background:transparent;border:none;color:var(--text);cursor:pointer;}
+.gc.active .gni{color:#fff;}
+.gcnt{font-size:9px;white-space:nowrap;display:flex;gap:5px;}
+.gca{color:var(--success)}.gcd{color:var(--cand)}
+.gdel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;}
+.gdel:hover{color:var(--danger);}
+.gclubs{padding:5px 10px 8px;display:flex;flex-wrap:wrap;gap:4px;min-height:8px;}
+.geh{font-size:9px;color:var(--muted);font-style:italic;}
+.ct{font-size:9px;padding:3px 7px;border-radius:4px;border:1px solid transparent;white-space:nowrap;font-family:'JetBrains Mono',monospace;display:inline-flex;align-items:center;gap:3px;}
+.ct .xt{cursor:pointer;opacity:.55;font-size:11px;line-height:1;}
+.ct .xt:hover{opacity:1;}
+#pool{padding:8px;border-top:1px solid var(--border);overflow-y:auto;max-height:230px;}
+#phdr{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;padding:0 2px;display:flex;justify-content:space-between;align-items:center;}
+#pleg{display:flex;gap:8px;font-size:8px;font-family:'Syne',sans-serif;}
+.pli{display:flex;align-items:center;gap:3px;}
+.pld{width:6px;height:6px;border-radius:50%;}
+#pclubs{display:flex;flex-wrap:wrap;gap:4px;}
+.pp{font-size:9px;padding:4px 9px;border-radius:4px;cursor:pointer;border:1px solid;font-family:'JetBrains Mono',monospace;white-space:nowrap;transition:all .12s;}
+.pp.free{border-color:rgba(62,207,142,.4);color:var(--success);background:rgba(62,207,142,.07);}
+.pp.free:hover{background:rgba(62,207,142,.2);border-color:var(--success);}
+.pp.candidate{border-color:rgba(91,196,245,.45);color:var(--cand);background:rgba(91,196,245,.08);}
+.pp.candidate:hover{background:rgba(91,196,245,.2);border-color:var(--cand);}
+.pp.blocked{border-color:rgba(255,92,114,.2);color:rgba(255,92,114,.4);background:transparent;cursor:not-allowed;}
+.pp.neutral{border-color:var(--border);color:var(--muted);background:rgba(255,255,255,.03);cursor:default;}
+#amenu{position:fixed;z-index:1000;background:#1a1a28;border:1px solid rgba(255,255,255,.13);border-radius:8px;padding:6px;min-width:210px;box-shadow:0 8px 32px rgba(0,0,0,.7);display:none;}
+#amtitle{font-size:9px;color:var(--muted);padding:4px 8px 6px;letter-spacing:.08em;text-transform:uppercase;font-family:'Syne',sans-serif;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.amo{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:pointer;font-size:10px;transition:background .1s;}
+.amo:hover:not(.amd){background:rgba(255,255,255,.08);}
+.amdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.amd{opacity:.35;cursor:not-allowed;}
+.amnew{color:var(--accent);border-top:1px solid var(--border);margin-top:4px;padding-top:8px;}
+#abd{position:fixed;inset:0;z-index:999;display:none;}
+#right{flex:1;position:relative;overflow:hidden;}
+#ntt{position:fixed;z-index:500;background:rgba(8,8,18,.97);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 14px;font-size:10px;pointer-events:none;display:none;max-width:240px;line-height:1.7;}
+#ntt .nn{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#fff;margin-bottom:3px;}
+#ntt .nr{color:var(--muted);}#ntt .nr span{color:var(--text);}
+#ntt .ns{font-size:9px;margin-top:5px;font-family:'Syne',sans-serif;font-weight:600;}
+#ntt .nh{font-size:8px;color:var(--muted);margin-top:3px;font-style:italic;}
+#leg{position:absolute;bottom:14px;right:14px;background:rgba(10,10,18,.93);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:9px;line-height:2.1;}
+#leg .lt{font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.lr{display:flex;align-items:center;gap:8px;color:var(--muted);}
+.ld{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px;}
+
+/* ── FILTER DRAWER ── */
+#filter-drawer{
+  position:fixed;top:52px;right:0;bottom:0;width:300px;z-index:200;
+  background:#15151f;border-left:1px solid var(--border);
+  display:flex;flex-direction:column;transform:translateX(100%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:-8px 0 32px rgba(0,0,0,.4);
+}
+#filter-drawer.open{transform:translateX(0);}
+#fd-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#fd-header h3{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);}
+#fd-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;}
+#fd-close:hover{color:var(--text);}
+#fd-search{padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+#fd-search input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:10px;outline:none;}
+#fd-search input:focus{border-color:var(--accent);}
+#fd-search input::placeholder{color:var(--muted);}
+#fd-quickbtns{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;}
+.fqb{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:4px;border:1px solid var(--border);cursor:pointer;background:rgba(255,255,255,.04);color:var(--muted);transition:all .12s;}
+.fqb:hover{color:var(--text);border-color:rgba(255,255,255,.2);}
+#fd-count{font-size:9px;color:var(--muted);padding:4px 12px;flex-shrink:0;}
+#fd-list{flex:1;overflow-y:auto;padding:8px;}
+.fd-item{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:5px;cursor:pointer;transition:background .1s;margin-bottom:2px;}
+.fd-item:hover{background:rgba(255,255,255,.05);}
+.fd-item input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:pointer;flex-shrink:0;}
+.fd-item .fd-name{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--text);flex:1;}
+.fd-item .fd-size{font-size:8px;color:var(--muted);white-space:nowrap;}
+#btn-filter{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;background:transparent;color:var(--cand);border:1px solid rgba(91,196,245,.3);padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+#btn-filter:hover{background:rgba(91,196,245,.1);border-color:var(--cand);}
+#btn-filter.has-filter{background:rgba(91,196,245,.15);border-color:var(--cand);color:#fff;}
+
+</style>
+</head>
+<body>
+
+<!-- ── UPLOAD SCREEN ──────────────────────────────────────────────────────── -->
+<div id="upload-screen">
+  <h1>Σχεδιασμός Δραστηριοτήτων</h1>
+  <p>Ανεβάστε το αρχείο Excel με το μητρώο ομίλων και τους μαθητές.<br>Το αρχείο πρέπει να περιέχει ένα φύλλο <strong>"Όμιλοι"</strong> και ένα φύλλο με τους μαθητές.</p>
+  <div id="drop-zone">
+    <span class="dz-icon">📊</span>
+    <h2>Σύρτε το αρχείο Excel εδώ</h2>
+    <p>ή κάντε κλικ για να επιλέξετε αρχείο</p>
+    <button class="dz-btn" onclick="document.getElementById('file-input').click()">Επιλογή αρχείου</button>
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+  </div>
+  <p id="upload-note">Αποδεκτές μορφές: .xlsx, .xls &nbsp;·&nbsp; Το αρχείο δεν αποστέλλεται πουθενά — όλη η επεξεργασία γίνεται τοπικά στον browser σας.</p>
+</div>
+
+<!-- ── CONFIRM SCREEN ─────────────────────────────────────────────────────── -->
+<div id="confirm-screen">
+  <div id="confirm-header">
+    <h2>Επιβεβαίωση Δεδομένων</h2>
+    <p>Ελέγξτε ότι το αρχείο διαβάστηκε σωστά πριν συνεχίσετε</p>
+  </div>
+  <div id="confirm-body"></div>
+  <div id="confirm-footer">
+    <button class="btn-sec" onclick="goUpload()">← Πίσω</button>
+    <button class="btn-primary" id="btn-proceed" onclick="proceedToApp()">Συνέχεια →</button>
+  </div>
+</div>
+
+<!-- ── MAIN APP ───────────────────────────────────────────────────────────── -->
+<div id="app-screen">
+  <div id="topbar">
+    <h1 id="app-title">🗺 Σχεδιασμός Δραστηριοτήτων</h1>
+    <div id="gstats">
+      <div class="gs sg"><span class="v" id="st-g">0</span><span class="l">Ομάδες</span></div>
+      <div class="gs sa"><span class="v" id="st-a">0</span><span class="l">Ενεργοί</span></div>
+      <div class="gs si"><span class="v" id="st-i">0</span><span class="l">Αδρανείς</span></div>
+      <div class="gs su"><span class="v" id="st-u">0</span><span class="l">Αδιάθετοι</span></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="bp" id="btn-nt">+ Νέα Ομάδα</button>
+      <button class="bd" id="btn-rs">↺ Επαναφορά</button>
+      <button id="btn-filter" class="bm">🔍 Φίλτρο</button>
+      <button class="bm" onclick="goUpload()">📂 Νέο αρχείο</button>
+    </div>
+  </div>
+  <div id="main">
+    <div id="left">
+      <div id="lhdr"><h2>Ομάδες Δραστηριοτήτων</h2><button id="btn-ag">+ Ομάδα</button></div>
+      <div id="active-hint"><span style="font-style:italic;color:var(--muted);font-size:9px">Κλικ σε ομάδα για να την επιλέξετε</span></div>
+      <div id="gscroll"></div>
+      <div id="pool">
+        <div id="phdr">
+          <span>Αδιάθετοι <span id="pcnt" style="color:var(--text)">0</span></span>
+          <div id="pleg">
+            <div class="pli"><div class="pld" style="background:var(--success)"></div><span style="color:var(--success)">Ελεύθερος</span></div>
+            <div class="pli"><div class="pld" style="background:var(--cand)"></div><span style="color:var(--cand)">Υποψήφιος</span></div>
+            <div class="pli"><div class="pld" style="background:var(--danger);opacity:.5"></div><span style="color:rgba(255,92,114,.5)">Αποκλεισμένος</span></div>
+          </div>
+        </div>
+        <div id="pclubs"></div>
+      </div>
+    </div>
+    <div id="right">
+      <svg id="gsvg" style="width:100%;height:100%"></svg>
+      <div id="leg">
+        <div class="lt">Υπόμνημα (σχετικά με ενεργή ομάδα)</div>
+        <div class="lr"><div class="ld" style="background:#555575"></div>Αδιάθετος</div>
+        <div class="lr"><div class="ld" style="background:var(--success);opacity:.8"></div>Ελεύθερος — χωρίς κοινούς μαθητές</div>
+        <div class="lr"><div class="ld" style="background:var(--cand);opacity:.9"></div>Υποψήφιος — κοινοί μαθητές με ενεργή ομάδα</div>
+        <div class="lr"><div class="ld" style="background:var(--danger);opacity:.4"></div>Αποκλεισμένος — κοινοί με άλλη ομάδα</div>
+        <div class="lr"><div class="ld" style="background:#fff;opacity:.3"></div>Ανατεθειμένος (χρώμα = ομάδα)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="abd"></div>
+<div id="amenu"><div id="amtitle"></div></div>
+
+<!-- ── FILTER DRAWER ──────────────────────────────────────────────────────── -->
+<div id="filter-drawer">
+  <div id="fd-header">
+    <h3>🔍 Φίλτρο Ομίλων</h3>
+    <button id="fd-close" title="Κλείσιμο">×</button>
+  </div>
+  <div id="fd-search"><input type="text" id="fd-search-input" placeholder="Αναζήτηση ομίλου..."/></div>
+  <div id="fd-quickbtns">
+    <button class="fqb" id="fqb-all">Όλοι</button>
+    <button class="fqb" id="fqb-none">Κανείς</button>
+    <button class="fqb" id="fqb-ingroup">Σε ομάδα</button>
+  </div>
+  <div id="fd-count"></div>
+  <div id="fd-list"></div>
+</div>
+
+<div id="ntt"></div>
+
+<script>
+const PAL=['#7c6fff','#ff5c72','#3ecf8e','#ffb547','#5bc4f5','#f06292','#c5e1a5','#ce93d8','#80deea','#ffcc80','#ef9a9a','#90caf9'];
+const DAY_COLS=['Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή'];
+
+// ── APP STATE ─────────────────────────────────────────────────────────────────
+let CLUBS=[], SIZES={}, CONF={}, MBR={}, TOTAL_STUDENTS=0, SELECTED_CLASSES=[];
+let groups=[], gid=1, activeGid=null;
+let hiddenClubs=new Set(); // clubs excluded from sociogram
+
+// ── VISIBLE CLUBS (respects filter) ──────────────────────────────────────────
+const visibleLabels = () => CLUBS.map(c=>c.label).filter(c=>!hiddenClubs.has(c));
+// CLUBS: [{id, label, name, teacher, day}]
+// CONF: {label: [label,...]}  (conflict adjacency by display label)
+// MBR:  {label: [studentIdx,...]}
+
+// ── UPLOAD & PARSE ────────────────────────────────────────────────────────────
+function goUpload(){
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('confirm-screen').style.display='none';
+  document.getElementById('app-screen').style.display='none';
+  groups=[]; gid=1; activeGid=null;
+}
+
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');handleFile(e.dataTransfer.files[0]);});
+document.getElementById('file-input').addEventListener('change',e=>handleFile(e.target.files[0]));
+dz.addEventListener('click',e=>{ if(e.target.classList.contains('dz-btn'))return; document.getElementById('file-input').click(); });
+
+let parsedData = null; // holds intermediate parsed result before class selection
+
+function handleFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      parsedData = parseWorkbook(wb);
+      showConfirmScreen(parsedData, file.name);
+    } catch(err) {
+      alert('Σφάλμα κατά την ανάγνωση του αρχείου: ' + err.message);
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function parseWorkbook(wb){
+  const result = { ok: true, errors: [], warnings: [], registry: [], studentSheet: null, classes: [], allStudents: [], unmapped: [] };
+
+  // 1. Find registry sheet
+  const regSheet = wb.Sheets['Όμιλοι'];
+  if(!regSheet){ result.errors.push('Δεν βρέθηκε το φύλλο "Όμιλοι". Βεβαιωθείτε ότι χρησιμοποιείτε το σωστό template.'); result.ok=false; return result; }
+
+  const regRows = XLSX.utils.sheet_to_json(regSheet, {defval:''});
+  // Expected cols: ID, Όνομα, Υπεύθυνος, Ημέρα
+  for(const row of regRows){
+    const id = String(row['ID']||'').trim();
+    const name = String(row['Όνομα Ομίλου']||row['Όνομα']||'').trim();
+    const teacher = String(row['Υπεύθυνος']||'').trim();
+    const day = String(row['Ημέρα']||'').trim();
+    if(!id || !name || id.startsWith('←')) continue; // skip note rows
+    result.registry.push({id, name, teacher, day});
+  }
+  if(!result.registry.length){ result.errors.push('Το φύλλο "Όμιλοι" δεν περιέχει δεδομένα.'); result.ok=false; return result; }
+
+  // Build lookup: (rawName, day) → registry entry
+  // rawName in students = "Name (Teacher)" or just "Name"
+  const lookup = new Map();
+  for(const r of result.registry){
+    const rawKey1 = r.teacher ? `${r.name} (${r.teacher})|${r.day}` : `${r.name}|${r.day}`;
+    const rawKey2 = `${r.name}|${r.day}`; // fallback without teacher
+    lookup.set(rawKey1.toLowerCase(), r);
+    if(!lookup.has(rawKey2.toLowerCase())) lookup.set(rawKey2.toLowerCase(), r);
+  }
+  result._lookup = lookup;
+
+  // 2. Find student sheet (first non-registry, non-note sheet with Αριθμός μητρώου)
+  let studSheetName = null;
+  for(const name of wb.SheetNames){
+    if(name==='Όμιλοι'||name==='Οδηγίες') continue;
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
+    if(rows.length && ('Αριθμός μητρώου' in rows[0] || 'ΕΠΩΝΥΜΟ' in rows[0])){ studSheetName=name; break; }
+  }
+  if(!studSheetName){ result.errors.push('Δεν βρέθηκε φύλλο μαθητών. Αναμένεται φύλλο με στήλη "Αριθμός μητρώου".'); result.ok=false; return result; }
+  result.studentSheet = studSheetName;
+
+  const studRows = XLSX.utils.sheet_to_json(wb.Sheets[studSheetName], {defval:''});
+
+  // 3. Detect day columns
+  const detectedDays = DAY_COLS.filter(d => d in studRows[0]);
+  if(!detectedDays.length){ result.warnings.push('Δεν βρέθηκαν στήλες ημερών (Δευτέρα–Παρασκευή).'); }
+  result.detectedDays = detectedDays;
+
+  // 4. Detect classes
+  const classCol = 'Τάξη';
+  const classSet = new Set();
+  for(const row of studRows){ if(row[classCol]) classSet.add(String(row[classCol]).trim()); }
+  result.classes = [...classSet].sort();
+
+  // 5. Parse students (all of them, class filtering happens later)
+  const unmappedSet = new Set();
+  for(let i=0; i<studRows.length; i++){
+    const row = studRows[i];
+    const clubs = [];
+    for(const day of detectedDays){
+      const raw = String(row[day]||'').trim();
+      if(!raw) continue;
+      const key1 = `${raw}|${day}`.toLowerCase();
+      // Try with and without teacher embedded
+      let entry = result._lookup.get(key1);
+      if(!entry){
+        // strip parenthetical and try name-only
+        const nameOnly = raw.replace(/\s*\([^)]*\)\s*$/,'').trim();
+        entry = result._lookup.get(`${nameOnly}|${day}`.toLowerCase());
+      }
+      if(entry){ clubs.push(entry.id); }
+      else { unmappedSet.add(`"${raw}" (${day})`); }
+    }
+    result.allStudents.push({
+      idx: i,
+      id: row['Αριθμός μητρώου']||i,
+      name: `${row['ΕΠΩΝΥΜΟ']||''} ${row['ΟΝΟΜΑ']||''}`.trim(),
+      class: String(row[classCol]||'').trim(),
+      clubs
+    });
+  }
+  result.unmapped = [...unmappedSet];
+  if(result.unmapped.length) result.warnings.push(`${result.unmapped.length} συνδυασμοί (όμιλος, ημέρα) δεν βρέθηκαν στο μητρώο ομίλων.`);
+
+  return result;
+}
+
+// ── CONFIRM SCREEN ─────────────────────────────────────────────────────────
+let selectedClasses = new Set();
+
+function showConfirmScreen(data, filename){
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('confirm-screen').style.display='flex';
+
+  selectedClasses = new Set(data.classes); // default: all selected
+
+  const body = document.getElementById('confirm-body');
+  body.innerHTML = '';
+
+  // File info
+  const sec1 = section('Αρχείο & Φύλλα');
+  sec1.innerHTML += confRow('Αρχείο', filename, 'ok');
+  sec1.innerHTML += confRow('Φύλλο μητρώου ομίλων', data.ok ? '"Όμιλοι" ✓' : 'Δεν βρέθηκε ✗', data.ok?'ok':'err');
+  sec1.innerHTML += confRow('Φύλλο μαθητών', data.studentSheet ? `"${data.studentSheet}" ✓` : 'Δεν βρέθηκε ✗', data.studentSheet?'ok':'err');
+  sec1.innerHTML += confRow('Στήλες ημερών', data.detectedDays.join(', ')||'Καμία', data.detectedDays.length?'ok':'err');
+  body.appendChild(sec1);
+
+  // Registry
+  const sec2 = section('Μητρώο Ομίλων');
+  sec2.innerHTML += confRow('Εγγεγραμμένοι όμιλοι', data.registry.length + ' όμιλοι', 'ok');
+  if(data.unmapped.length){
+    sec2.innerHTML += confRow('Αναντίστοιχα', `${data.unmapped.length} συνδυασμοί δεν βρέθηκαν στο μητρώο`, 'warn');
+    const ul = document.createElement('div');
+    ul.className = 'unmapped-list';
+    ul.innerHTML = '⚠ Οι παρακάτω τιμές δεν αντιστοιχούν σε εγγραφή του φύλλου "Όμιλοι":<br>' + data.unmapped.join(' &nbsp;·&nbsp; ');
+    sec2.appendChild(ul);
+  } else {
+    sec2.innerHTML += confRow('Αντιστοίχιση', 'Πλήρης — όλοι οι όμιλοι αναγνωρίστηκαν ✓', 'ok');
+  }
+  body.appendChild(sec2);
+
+  // Students & class selection
+  const sec3 = section('Μαθητές & Φίλτρο Τάξης');
+  sec3.innerHTML += confRow('Σύνολο μαθητών', data.allStudents.length, 'ok');
+  sec3.innerHTML += `<div class="conf-row"><span class="conf-label">Επιλογή τάξης</span><div class="class-btns" id="class-btns"></div></div>`;
+  body.appendChild(sec3);
+
+  // Populate class buttons
+  const cb = document.getElementById('class-btns');
+  const allBtn = document.createElement('button');
+  allBtn.className = 'class-btn selected';
+  allBtn.textContent = 'Όλες';
+  allBtn.dataset.cls = '__all__';
+  cb.appendChild(allBtn);
+  for(const cls of data.classes){
+    const b = document.createElement('button');
+    b.className = 'class-btn selected';
+    b.textContent = cls;
+    b.dataset.cls = cls;
+    cb.appendChild(b);
+  }
+  cb.addEventListener('click', e => {
+    const btn = e.target.closest('.class-btn');
+    if(!btn) return;
+    if(btn.dataset.cls === '__all__'){
+      const allSelected = [...cb.querySelectorAll('.class-btn:not([data-cls="__all__"])')].every(b=>b.classList.contains('selected'));
+      if(allSelected){ selectedClasses.clear(); cb.querySelectorAll('.class-btn').forEach(b=>b.classList.remove('selected')); }
+      else { data.classes.forEach(c=>selectedClasses.add(c)); cb.querySelectorAll('.class-btn').forEach(b=>b.classList.add('selected')); }
+    } else {
+      btn.classList.toggle('selected');
+      if(btn.classList.contains('selected')) selectedClasses.add(btn.dataset.cls);
+      else selectedClasses.delete(btn.dataset.cls);
+      const allBtn2 = cb.querySelector('[data-cls="__all__"]');
+      const allSelected2 = data.classes.every(c=>selectedClasses.has(c));
+      allBtn2.classList.toggle('selected', allSelected2);
+    }
+    updateStudentCount(data);
+    document.getElementById('btn-proceed').disabled = selectedClasses.size === 0;
+  });
+  updateStudentCount(data);
+
+  // Errors
+  if(data.errors.length){
+    const sec4 = section('Σφάλματα');
+    for(const err of data.errors) sec4.innerHTML += `<div style="font-size:10px;color:var(--danger);margin-bottom:6px">✗ ${err}</div>`;
+    body.appendChild(sec4);
+    document.getElementById('btn-proceed').disabled = true;
+  } else {
+    document.getElementById('btn-proceed').disabled = false;
+  }
+}
+
+function updateStudentCount(data){
+  const filtered = data.allStudents.filter(s=>selectedClasses.has(s.class)||s.class==='');
+  const sc = document.getElementById('confirm-body').querySelector('.conf-row .conf-val');
+  // update the student count display
+  const rows = document.getElementById('confirm-body').querySelectorAll('.conf-row');
+  for(const r of rows){
+    if(r.querySelector('.conf-label')?.textContent==='Σύνολο μαθητών'){
+      r.querySelector('.conf-val').textContent = `${filtered.length} (από ${data.allStudents.length})`;
+    }
+  }
+}
+
+function section(title){
+  const s = document.createElement('div');
+  s.className = 'confirm-section';
+  s.innerHTML = `<h3>${title}</h3>`;
+  return s;
+}
+function confRow(label, val, type=''){
+  return `<div class="conf-row"><span class="conf-label">${label}</span><span class="conf-val conf-${type}">${val}</span></div>`;
+}
+
+function proceedToApp(){
+  const data = parsedData;
+  const students = data.allStudents.filter(s=>selectedClasses.has(s.class)||s.class==='');
+
+  // Build club display labels
+  // If name+teacher combo appears more than once → append day
+  const nameTeacherCount = {};
+  for(const r of data.registry){
+    const k = `${r.name}|${r.teacher}`;
+    nameTeacherCount[k] = (nameTeacherCount[k]||0)+1;
+  }
+  const idToLabel = {};
+  const DAY_SHORT = {'Δευτέρα':'Δευ','Τρίτη':'Τρι','Τετάρτη':'Τετ','Πέμπτη':'Πεμ','Παρασκευή':'Παρ'};
+  for(const r of data.registry){
+    let label = r.name;
+    if(r.teacher) label += ` (${r.teacher})`;
+    if(nameTeacherCount[`${r.name}|${r.teacher}`]>1) label += ` (${DAY_SHORT[r.day]||r.day})`;
+    idToLabel[r.id] = label;
+  }
+
+  // Build CLUBS, MBR, CONF
+  CLUBS = data.registry.map(r=>({id:r.id, label:idToLabel[r.id], name:r.name, teacher:r.teacher, day:r.day}));
+  TOTAL_STUDENTS = students.length;
+  SIZES = {};
+  MBR = {};
+  for(const c of CLUBS){ SIZES[c.label]=0; MBR[c.label]=[]; }
+
+  students.forEach((s,idx)=>{
+    for(const cid of s.clubs){
+      const lbl = idToLabel[cid];
+      if(!lbl) continue;
+      if(!MBR[lbl]) MBR[lbl]=[];
+      if(!MBR[lbl].includes(idx)) MBR[lbl].push(idx);
+      SIZES[lbl]=(SIZES[lbl]||0);
+    }
+  });
+  for(const lbl of Object.keys(MBR)) SIZES[lbl]=MBR[lbl].length;
+
+  // Build conflict graph
+  CONF = {};
+  for(const c of CLUBS) CONF[c.label]=[];
+  const studentLabels = students.map((s,idx)=>s.clubs.map(cid=>idToLabel[cid]).filter(Boolean));
+  const sharedCount = {};
+  for(const clubs of studentLabels){
+    for(let i=0;i<clubs.length;i++) for(let j=i+1;j<clubs.length;j++){
+      const key = [clubs[i],clubs[j]].sort().join('|||');
+      sharedCount[key]=(sharedCount[key]||0)+1;
+    }
+  }
+  for(const [key] of Object.entries(sharedCount)){
+    const [a,b]=key.split('|||');
+    if(!CONF[a]) CONF[a]=[];
+    if(!CONF[b]) CONF[b]=[];
+    if(!CONF[a].includes(b)) CONF[a].push(b);
+    if(!CONF[b].includes(a)) CONF[b].push(a);
+  }
+
+  // Reset groups and filter
+  groups=[]; gid=1; activeGid=null; hiddenClubs=new Set(); updateFilterBtn();
+
+  document.getElementById('confirm-screen').style.display='none';
+  document.getElementById('app-screen').style.display='flex';
+  document.getElementById('app-title').textContent = `🗺 Δραστηριότητες — ${[...selectedClasses].join(', ')} Λυκείου`;
+  document.getElementById('st-i').textContent = TOTAL_STUDENTS;
+
+  initGraph();
+  render();
+}
+
+// ── LOGIC ─────────────────────────────────────────────────────────────────────
+const cg = c => groups.find(g=>g.clubs.includes(c))||null;
+const assigned = () => new Set(groups.flatMap(g=>g.clubs)); // includes hidden (they stay in groups)
+
+function clubStatusFor(club, targetGid){
+  if(targetGid===null) return 'neutral';
+  let sharesWithTarget=false, sharesWithOther=false;
+  for(const nb of (CONF[club]||[])){
+    const g=cg(nb);
+    if(!g) continue;
+    if(g.id===targetGid) sharesWithTarget=true;
+    else sharesWithOther=true;
+  }
+  if(sharesWithOther) return 'blocked';
+  if(sharesWithTarget) return 'candidate';
+  return 'free';
+}
+function canJoin(club,tid){
+  for(const nb of (CONF[club]||[])){ const g=cg(nb); if(g&&g.id!==tid) return false; }
+  return true;
+}
+function countActive(){
+  const s=new Set();
+  for(const g of groups) for(const c of g.clubs) for(const sid of (MBR[c]||[])) s.add(sid);
+  return s.size;
+}
+function gStats(g){
+  const active=new Set();
+  for(const c of g.clubs) for(const sid of (MBR[c]||[])) active.add(sid);
+  const cand=new Set();
+  const asgn=assigned();
+  for(const c of CLUBS.map(x=>x.label)){
+    if(asgn.has(c)||hiddenClubs.has(c)) continue;
+    if(clubStatusFor(c,g.id)==='candidate') for(const sid of (MBR[c]||[])) if(!active.has(sid)) cand.add(sid);
+  }
+  return {active:active.size, cand:cand.size};
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){ renderGroups(); renderPool(); renderStats(); renderGraph(); renderActiveHint(); }
+
+function renderActiveHint(){
+  const el=document.getElementById('active-hint');
+  const ag=groups.find(g=>g.id===activeGid);
+  if(!ag) el.innerHTML=`<span style="font-style:italic;color:var(--muted);font-size:9px">Κλικ σε ομάδα για να την επιλέξετε</span>`;
+  else el.innerHTML=`<div class="ah-dot" style="background:${ag.color}"></div><span style="color:var(--muted);font-size:9px">Ενεργή ομάδα: </span><span style="color:${ag.color};font-size:9px;font-weight:700">${ag.name}</span>`;
+}
+
+function renderGroups(){
+  const el=document.getElementById('gscroll');
+  el.innerHTML='';
+  if(!groups.length){
+    el.innerHTML=`<div style="padding:20px 12px;text-align:center;font-size:10px;color:var(--muted)">Δεν υπάρχουν ομάδες.<br>Πατήστε "+ Ομάδα" για να ξεκινήσετε.</div>`;
+    return;
+  }
+  for(const g of groups){
+    const {active,cand}=gStats(g);
+    const card=document.createElement('div');
+    card.className='gc'+(g.id===activeGid?' active':'');
+    card.dataset.gid=g.id;
+    card.innerHTML=`<div class="gh"><div class="gsw" style="background:${g.color}"></div><input class="gni" value="${g.name}" data-gid="${g.id}"/><div class="gcnt"><span class="gca">${active}✓</span><span class="gcd">+${cand}?</span></div><button class="gdel" data-gid="${g.id}">×</button></div><div class="gclubs" id="gc-${g.id}"></div>`;
+    el.appendChild(card);
+    const cd=card.querySelector(`#gc-${g.id}`);
+    if(!g.clubs.length){ cd.innerHTML=`<span class="geh">Επιλέξτε ομάδα και κλικ σε όμιλο</span>`; }
+    else for(const c of g.clubs){
+      const t=document.createElement('span');
+      t.className='ct';t.style.cssText=`background:${g.color}22;border-color:${g.color}55;color:${g.color}`;
+      t.innerHTML=`${c}<span class="xt" data-c="${c}" data-gid="${g.id}">×</span>`;
+      cd.appendChild(t);
+    }
+  }
+  el.addEventListener('click',e=>{
+    const d=e.target.closest('.gdel'); if(d){e.stopPropagation();delGroup(+d.dataset.gid);return;}
+    const x=e.target.closest('.xt'); if(x){e.stopPropagation();remFromGroup(x.dataset.c,+x.dataset.gid);return;}
+    const i=e.target.closest('.gni'); if(i) return;
+    const card=e.target.closest('.gc'); if(card){activeGid=+card.dataset.gid;render();}
+  });
+  el.addEventListener('input',e=>{
+    const i=e.target.closest('.gni');
+    if(i){const g=groups.find(x=>x.id===+i.dataset.gid);if(g){g.name=i.value;renderStats();renderActiveHint();}}
+  });
+}
+
+function renderPool(){
+  const asgn=assigned();
+  const un=CLUBS.map(c=>c.label).filter(c=>!asgn.has(c)&&!hiddenClubs.has(c));
+  document.getElementById('pcnt').textContent=un.length;
+  const el=document.getElementById('pclubs'); el.innerHTML='';
+  const hints={free:'Ελεύθερος — χωρίς κοινούς μαθητές με ενεργή ομάδα.',candidate:'Υποψήφιος — κοινοί μαθητές με ενεργή ομάδα. Μπορεί να ενταχθεί.',blocked:'Αποκλεισμένος — κοινοί μαθητές με άλλη ομάδα.',neutral:'Επιλέξτε ομάδα για να δείτε την κατάσταση.'};
+  for(const c of un){
+    const st=clubStatusFor(c,activeGid);
+    const p=document.createElement('span');
+    p.className=`pp ${st}`;p.textContent=c;p.title=hints[st];
+    if(st!=='blocked'&&st!=='neutral') p.addEventListener('click',e=>showMenu(e,c));
+    el.appendChild(p);
+  }
+}
+
+function renderStats(){
+  document.getElementById('st-g').textContent=groups.length;
+  const a=countActive();
+  document.getElementById('st-a').textContent=a;
+  document.getElementById('st-i').textContent=TOTAL_STUDENTS-a;
+  document.getElementById('st-u').textContent=CLUBS.length-assigned().size;
+}
+
+// ── MENU ──────────────────────────────────────────────────────────────────────
+function showMenu(e,club){
+  e.stopPropagation();
+  const menu=document.getElementById('amenu');
+  document.getElementById('amtitle').textContent=`Προσθήκη: ${club}`;
+  [...menu.querySelectorAll('.amo')].forEach(x=>x.remove());
+  for(const g of groups){
+    const ok=canJoin(club,g.id);
+    const o=document.createElement('div');
+    o.className='amo'+(ok?'':' amd');
+    o.innerHTML=`<div class="amdot" style="background:${g.color}"></div><span>${g.name}${g.id===activeGid?' ★':''}</span>${ok?'':`<span style="margin-left:auto;font-size:8px;color:var(--danger)">σύγκρουση</span>`}`;
+    if(ok) o.addEventListener('click',()=>{addToGroup(club,g.id);hideMenu();});
+    menu.appendChild(o);
+  }
+  const nw=document.createElement('div');
+  nw.className='amo amnew';
+  nw.innerHTML=`<span>+ Νέα ομάδα με αυτόν τον όμιλο</span>`;
+  nw.addEventListener('click',()=>{const g=mkGroup();addToGroup(club,g.id);hideMenu();});
+  menu.appendChild(nw);
+  const r=e.target.getBoundingClientRect();
+  menu.style.left=Math.min(r.left,window.innerWidth-240)+'px';
+  menu.style.top=Math.min(r.bottom+4,window.innerHeight-220)+'px';
+  menu.style.display='block';
+  document.getElementById('abd').style.display='block';
+}
+function hideMenu(){ document.getElementById('amenu').style.display='none'; document.getElementById('abd').style.display='none'; }
+document.getElementById('abd').addEventListener('click',hideMenu);
+
+// ── GROUP OPS ─────────────────────────────────────────────────────────────────
+function mkGroup(name){
+  const color=PAL[groups.length%PAL.length];
+  const g={id:gid++,name:name||`Ομάδα ${groups.length+1}`,color,clubs:[]};
+  groups.push(g); activeGid=g.id; render(); return g;
+}
+function delGroup(id){ groups=groups.filter(g=>g.id!==id); if(activeGid===id) activeGid=groups.length?groups[groups.length-1].id:null; render(); }
+function addToGroup(c,tid){ if(!canJoin(c,tid))return; const g=groups.find(x=>x.id===tid); if(g&&!g.clubs.includes(c)){g.clubs.push(c);render();} }
+function remFromGroup(c,tid){ const g=groups.find(x=>x.id===tid); if(g){g.clubs=g.clubs.filter(x=>x!==c);render();} }
+
+document.getElementById('btn-nt').addEventListener('click',()=>mkGroup());
+document.getElementById('btn-ag').addEventListener('click',()=>mkGroup());
+document.getElementById('btn-rs').addEventListener('click',()=>{ groups=[];gid=1;activeGid=null;render(); });
+
+// ── GRAPH ─────────────────────────────────────────────────────────────────────
+let sim, nsel, lsel;
+
+function initGraph(){
+  const svgEl = document.getElementById('gsvg');
+  svgEl.innerHTML='';
+  const svg=d3.select('#gsvg');
+  const gel=svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.1,6]).on('zoom',e=>gel.attr('transform',e.transform)));
+  const df=svg.append('defs');
+  const gf=df.append('filter').attr('id','gw');
+  gf.append('feGaussianBlur').attr('stdDeviation','4').attr('result','cb');
+  const mf=gf.append('feMerge');
+  mf.append('feMergeNode').attr('in','cb');mf.append('feMergeNode').attr('in','SourceGraphic');
+
+  const W=()=>document.getElementById('right').clientWidth;
+  const H=()=>document.getElementById('right').clientHeight;
+
+  const nodes=CLUBS.map(c=>({id:c.label,size:SIZES[c.label]||5}));
+  const links=[];
+  for(const [c1,nbs] of Object.entries(CONF)) for(const c2 of nbs) if(c1<c2) links.push({source:c1,target:c2});
+
+  nodes.forEach((d,i)=>{
+    const a=(2*Math.PI*i)/nodes.length;
+    d.x=W()/2+W()*.3*Math.cos(a); d.y=H()/2+H()*.3*Math.sin(a);
+  });
+
+  sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(88).strength(.3))
+    .force('charge',d3.forceManyBody().strength(-250))
+    .force('center',d3.forceCenter(W()/2,H()/2))
+    .force('collide',d3.forceCollide().radius(d=>Math.sqrt(d.size)*3.4+14));
+
+  lsel=gel.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(255,255,255,.05)').attr('stroke-width',.8);
+
+  nsel=gel.append('g').selectAll('.gn').data(nodes).join('g')
+    .attr('class','gn').style('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;})
+    );
+
+  nsel.append('circle').attr('r',d=>Math.max(7,Math.sqrt(d.size)*3.2));
+  nsel.append('text')
+    .attr('dy',d=>-Math.max(7,Math.sqrt(d.size)*3.2)-5)
+    .attr('text-anchor','middle')
+    .style('font-family',"'JetBrains Mono',monospace").style('font-size','8.5px')
+    .style('fill','rgba(220,220,240,.85)').style('paint-order','stroke')
+    .style('stroke','rgba(0,0,0,.9)').style('stroke-width','3px')
+    .style('pointer-events','none').text(d=>d.id);
+
+  sim.on('tick',()=>{
+    lsel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nsel.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  const ntt=document.getElementById('ntt');
+  nsel.on('click',(e,d)=>{
+    const g=cg(d.id);
+    if(g){activeGid=g.id;render();return;}
+    const st=clubStatusFor(d.id,activeGid);
+    if(st==='blocked') return;
+    if(st==='neutral'){alert('Επιλέξτε πρώτα μια ομάδα.');return;}
+    showMenu(e,d.id);
+  }).on('mouseover',(e,d)=>{
+    const g=cg(d.id);
+    const st=g?'assigned':clubStatusFor(d.id,activeGid);
+    const sl={assigned:`<span style="color:${g?.color}">Σε ομάδα: ${g?.name}</span>`,free:`<span style="color:var(--success)">Ελεύθερος</span>`,candidate:`<span style="color:var(--cand)">Υποψήφιος — κοινοί μαθητές με ενεργή ομάδα</span>`,blocked:`<span style="color:var(--danger)">Αποκλεισμένος — κοινοί με άλλη ομάδα</span>`,neutral:`<span style="color:var(--muted)">Επιλέξτε ομάδα</span>`};
+    const hint={assigned:'Κλικ για ενεργοποίηση',free:'Κλικ για ανάθεση',candidate:'Κλικ για κοινή δραστηριότητα',blocked:'Αδύνατη προσθήκη',neutral:''}[st]||'';
+    ntt.innerHTML=`<div class="nn">${d.id}</div><div class="nr">Μαθητές: <span>${SIZES[d.id]||0}</span></div><div class="nr">Συνδέσεις: <span>${(CONF[d.id]||[]).length}</span></div><div class="ns">${sl[st]||''}</div><div class="nh">${hint}</div>`;
+    ntt.style.display='block';
+  }).on('mousemove',e=>{ntt.style.left=(e.clientX+14)+'px';ntt.style.top=(e.clientY-20)+'px';})
+    .on('mouseout',()=>ntt.style.display='none');
+}
+
+function renderGraph(){
+  if(!nsel||!lsel) return;
+  nsel.each(function(d){
+    const g=cg(d.id);
+    // Hidden clubs: fully faded, not interactive
+    if(hiddenClubs.has(d.id)){
+      d3.select(this).select('circle').attr('fill','#22223a').attr('stroke','#333355').attr('stroke-width',1).attr('filter',null).style('opacity',.18);
+      d3.select(this).select('text').style('opacity',.1);
+      return;
+    }
+    let color,fo,so,op=1,filt=null;
+    if(g){color=g.color;fo='28';so='ee';filt='url(#gw)';}
+    else{
+      const st=clubStatusFor(d.id,activeGid);
+      if(st==='free'){color='#3ecf8e';fo='15';so='88';}
+      else if(st==='candidate'){color='#5bc4f5';fo='20';so='bb';}
+      else if(st==='blocked'){color='#ff5c72';fo='08';so='3a';op=.35;}
+      else{color='#555575';fo='18';so='66';}
+    }
+    d3.select(this).select('circle').attr('fill',color+fo).attr('stroke',color+so).attr('stroke-width',g?2.5:1.5).attr('filter',filt).style('opacity',op);
+    d3.select(this).select('text').style('opacity',op<1?.3:1);
+  });
+  lsel.attr('stroke',d=>{
+    const s=typeof d.source==='object'?d.source.id:d.source;
+    const t=typeof d.target==='object'?d.target.id:d.target;
+    const sg=cg(s),tg=cg(t);
+    if(sg&&tg&&sg.id===tg.id) return sg.color+'55';
+    if(sg&&tg) return '#ff5c7270';
+    if(sg||tg) return 'rgba(255,255,255,.1)';
+    return 'rgba(255,255,255,.04)';
+  }).attr('stroke-width',d=>{
+    const sg=cg(typeof d.source==='object'?d.source.id:d.source);
+    const tg=cg(typeof d.target==='object'?d.target.id:d.target);
+    return(sg&&tg)?(sg.id===tg.id?1.5:2):.8;
+  });
+}
+
+// ── FILTER DRAWER ─────────────────────────────────────────────────────────────
+function openFilterDrawer(){
+  document.getElementById('filter-drawer').classList.add('open');
+  renderFilterList();
+}
+function closeFilterDrawer(){
+  document.getElementById('filter-drawer').classList.remove('open');
+}
+
+function renderFilterList(){
+  const q = document.getElementById('fd-search-input').value.toLowerCase();
+  const list = document.getElementById('fd-list');
+  list.innerHTML='';
+  const all = CLUBS.map(c=>c.label);
+  const filtered = q ? all.filter(l=>l.toLowerCase().includes(q)) : all;
+  document.getElementById('fd-count').textContent = `${filtered.length} από ${all.length} όμιλοι`;
+  for(const lbl of filtered){
+    const item = document.createElement('div');
+    item.className='fd-item';
+    const isHidden = hiddenClubs.has(lbl);
+    const inGroup = !!cg(lbl);
+    item.innerHTML=`
+      <input type="checkbox" ${isHidden?'':'checked'} data-lbl="${lbl.replace(/"/g,'&quot;')}"/>
+      <span class="fd-name">${lbl}${inGroup?` <span style="color:${cg(lbl).color};font-size:8px">●</span>`:''}</span>
+      <span class="fd-size">${SIZES[lbl]||0} μαθ.</span>`;
+    item.querySelector('input').addEventListener('change', e=>{
+      const l = e.target.dataset.lbl;
+      if(e.target.checked) hiddenClubs.delete(l);
+      else hiddenClubs.add(l);
+      updateFilterBtn();
+      render();
+    });
+    list.appendChild(item);
+  }
+}
+
+function updateFilterBtn(){
+  const btn = document.getElementById('btn-filter');
+  const n = hiddenClubs.size;
+  if(n>0){ btn.classList.add('has-filter'); btn.textContent=`🔍 Φίλτρο (${CLUBS.length-n}/${CLUBS.length})`; }
+  else { btn.classList.remove('has-filter'); btn.textContent='🔍 Φίλτρο'; }
+}
+
+document.getElementById('btn-filter').addEventListener('click', ()=>{
+  const d = document.getElementById('filter-drawer');
+  if(d.classList.contains('open')) closeFilterDrawer();
+  else openFilterDrawer();
+});
+document.getElementById('fd-close').addEventListener('click', closeFilterDrawer);
+document.getElementById('fd-search-input').addEventListener('input', renderFilterList);
+
+document.getElementById('fqb-all').addEventListener('click',()=>{
+  hiddenClubs.clear(); updateFilterBtn(); render(); renderFilterList();
+});
+document.getElementById('fqb-none').addEventListener('click',()=>{
+  CLUBS.forEach(c=>hiddenClubs.add(c.label)); updateFilterBtn(); render(); renderFilterList();
+});
+document.getElementById('fqb-ingroup').addEventListener('click',()=>{
+  // Show only clubs that are in a group — hide everything else
+  const inGroup = new Set(groups.flatMap(g=>g.clubs));
+  hiddenClubs.clear();
+  CLUBS.forEach(c=>{ if(!inGroup.has(c.label)) hiddenClubs.add(c.label); });
+  updateFilterBtn(); render(); renderFilterList();
+});
+
+// Reset filter when new data is loaded
+const _origProceed = proceedToApp;
+
+</script>
+</body>
+</html>
